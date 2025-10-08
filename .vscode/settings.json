@@ -1,0 +1,12 @@
+{
+    "emeraldwalk.runonsave": {
+        "commands": [
+            {
+                "match": ".*",
+                "isAsync": true,
+                "cmd": "git add . && git commit -m \"Auto commit on save\" && git push"
+            }
+        ]
+    }
+}
+
