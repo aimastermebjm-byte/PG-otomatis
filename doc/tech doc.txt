@@ -1,0 +1,130 @@
+
+
+Tentu saja! Keputusan yang sangat tepat. Membuat aplikasi native khusus untuk "bridge" ini akan memberikan kontrol penuh, keandalan, dan performa yang jauh lebih baik dibandingkan dengan menggunakan aplikasi automasi pihak ketiga.
+
+Mari kita edit Technical Document untuk mencerminkan perubahan ini menjadi solusi yang lebih solid dan "powerful".
+
+---
+
+## Technical Document: Automatic Payment Verification System (Revised)
+
+### 1. Visi Proyek
+
+Membangun sistem verifikasi pembayaran otomatis untuk toko online PWA yang memanfaatkan notifikasi dari aplikasi perbankan. Sistem ini akan menggunakan **aplikasi native Android khusus** yang berjalan di latar belakang untuk memastikan proses verifikasi yang andal, cepat, dan efisien tanpa mengganggu kinerja perangkat admin.
+
+### 2. Masalah Inti
+
+*   **Proses Manual Lambat:** Verifikasi manual memakan waktu dan rentan akan human error.
+*   **Delay Konfirmasi:** Pelanggan mengalami penundaan dalam menerima konfirmasi pembayaran.
+*   **Keterbatasan Solusi Non-Native:** Aplikasi automasi (seperti Tasker) kurang fleksibel, kurang aman, dan performanya tidak terjamin untuk tugas mission-critical seperti ini.
+
+### 3. Solusi Arsitektur
+
+Kami akan mengadopsi arsitektur berbasis **Native Bridge App** yang bertindak sebagai perantara yang andal antara notifikasi bank dan backend sistem.
+
+**Alur Utama:** `Bank Notification` -> `Native Bridge App (Background Service)` -> `Cloud Function (Backend)` -> `Firestore (Database)` -> `Real-time Update ke PWA Pelanggan`
+
+### 4. Diagram Arsitektur Sistem
+
+```mermaid
+sequenceDiagram
+    participant P as Pelanggan (PWA)
+    participant F as Firestore DB
+    participant CF as Cloud Function
+    participant BA as Native Bridge App (HP Admin)
+    participant B as Aplikasi Bank
+
+    P->>F: 1. Checkout & Buat Order (Status: PENDING)
+    P->>P: 2. Melakukan Transfer via Bank
+    B->>BA: 3. Notifikasi Transfer Masuk
+    BA->>BA: 4. Background Service Filter & Ekstrak Data
+    BA->>CF: 5. Kirim Data Verifikasi (HTTP POST)
+    CF->>CF: 6. Logika Verifikasi & Update Order
+    CF->>F: 7. Update Status Order jadi PAID
+    F->>P: 8. Real-time Push Update
+    P->>P: 9. Tampilan Pesanan Berubah jadi "PAID"
+```
+
+### 5. Detil Komponen
+
+| Komponen | Deskripsi | Teknologi |
+| :--- | :--- | :--- |
+| **PWA (Frontend)** | Aplikasi toko online untuk pelanggan. | HTML, CSS, JS, Firebase SDK |
+| **Native Bridge App** | Aplikasi Android native yang ringan dan berjalan sebagai **layanan latar belakang (background service)**. Bertugas memantau, memfilter, dan mengirim data notifikasi bank ke backend. | **Android (Java/Kotlin), NotificationListenerService, WorkManager** |
+| **Cloud Function** | Otak dari sistem. Menerima data, menjalankan logika verifikasi, dan mengupdate database. | Node.js, Firebase Cloud Functions |
+| **Firestore** | Database NoSQL real-time. | Google Cloud Firestore |
+| **Aplikasi Bank** | Sumber kebenaran (source of truth) untuk transaksi. | Aplikasi Bank Pihak Ketiga |
+
+### 6. Alur Data (Data Flow) - Langkah demi Langkah
+
+1.  **Checkout:** Pelanggan melakukan checkout di PWA. Dokumen `order` dengan status `PENDING` dibuat di Firestore.
+2.  **Pembayaran:** Pelanggan mentransfer sejumlah uang.
+3.  **Notifikasi Masuk:** Aplikasi Bank di HP admin menerima notifikasi.
+4.  **Native Bridge App Bekerja (di Background):**
+    *   `NotificationListenerService` yang ada di dalam aplikasi secara otomatis dipicu oleh OS Android saat notifikasi baru masuk.
+    *   Layanan ini membaca konten notifikasi.
+    *   **Filter:** Logika dalam aplikasi memeriksa apakah notifikasi berasal dari aplikasi bank yang ditentukan dan mengandung kata kunci ("transfer", "masuk", dll).
+    *   **Ekstraksi:** Data penting (`jumlah`, `nama_pengirim`) diekstrak menggunakan teknik parsing (misalnya Regex).
+5.  **Kirim ke Backend (Secara Efisien):**
+    *   Aplikasi menggunakan `WorkManager` untuk menjadwalkan pengiriman data ke Cloud Function. Ini memastikan tugas jaringan berjalan dengan hemat baterai dan tidak diblokir oleh pembatasan latar belakang Android (Doze Mode).
+    *   Data dikirim via HTTP POST request ke endpoint Cloud Function.
+6.  **Cloud Function Verifikasi:**
+    *   Menerima payload JSON.
+    *   Mencari `order` dengan status `PENDING` dan `total` yang cocok.
+    *   Jika cocok, update status order menjadi `'PAID'`.
+7.  **Real-time Update:** Firestore memberitahu PWA pelanggan tentang perubahan status.
+8.  **Tampilan Terupdate:** PWA pelanggan menampilkan status "PAID" secara otomatis.
+
+### 7. Struktur Data (API Contract)
+
+*(Tidak ada perubahan dari versi sebelumnya)*
+
+**A. Data dari Native Bridge App ke Cloud Function (HTTP POST)**
+*   **Endpoint:** `https://<region>-<project-id>.cloudfunctions.net/verifyPayment`
+*   **Body (JSON):**
+    ```json
+    {
+      "bank": "BCA",
+      "senderName": "BUDI SANTOSO",
+      "amount": 25123,
+      "rawNotification": "Transfer masuk dari BUDI SANTOSO sebesar Rp 25.123"
+    }
+    ```
+
+### 8. Rencana Pengembangan Berfasa (Phased Plan)
+
+*   **Fase 1: Backend & Logika Verifikasi**
+    1.  Setup Firebase Cloud Functions.
+    2.  Buat fungsi `verifyPayment` yang menerima HTTP request.
+    3.  Implementasikan logika pencarian dan update order di Firestore.
+    4.  Uji endpoint secara manual dengan tools seperti Postman.
+
+*   **Fase 2: Real-time Update di PWA**
+    1.  Tambahkan `onSnapshot` listener pada koleksi `orders` di PWA.
+    2.  Pastikan UI berubah secara otomatis saat status order berubah.
+
+*   **Fase 3: Pengembangan Native Bridge App (Android)**
+    1.  Setup proyek Android native baru (Java/Kotlin).
+    2.  Implementasikan `NotificationListenerService` untuk menerima notifikasi.
+    3.  Rancang UI sederhana untuk meminta izin dan konfigurasi awal (misal: API endpoint).
+    4.  Implementasikan logika filter dan ekstraksi data notifikasi.
+    5.  Integrasikan `WorkManager` untuk mengirim data ke Cloud Function secara efisien.
+    6.  Uji coba aplikasi dengan berbagai macam format notifikasi bank.
+    7.  Uji end-to-end dari transfer hingga update status.
+
+---
+
+### 9. Spesifikasi Teknis Native Bridge App (Android)
+
+*   **Izin (Permissions) yang Diperlukan:**
+    *   `BIND_NOTIFICATION_LISTENER_SERVICE`: Wajib, untuk membaca notifikasi.
+    *   `INTERNET`: Wajib, untuk komunikasi dengan backend.
+    *   `FOREGROUND_SERVICE`: Direkomendasikan, untuk menjaga layanan tetap hidup di Android versi terbaru dengan menampilkan notifikasi persisten (bisa disembunyikan).
+*   **Pertimbangan Performa & Daya:**
+    *   **Ringan:** Aplikasi tidak memiliki UI yang kompleks dan tidak melakukan proses berat di thread utama.
+    *   **Hemat Baterai:** Penggunaan `WorkManager` memastikan tugas jaringan dijalankan secara optimal, menghormati mode hemat daya Android.
+    *   **Andal:** Dibangun sebagai native app, ia lebih kebal terhadap pembunuhan proses oleh sistem OS dibandingkan aplikasi automasi.
+
+Dengan dokumentasi ini, kita memiliki panduan yang jelas untuk membangun sebuah sistem yang tidak hanya "powerful" tetapi juga andal dan efisien, sesuai dengan keinginan Anda.
+
+Apakah arah ini sudah sesuai dengan yang Anda bayangkan? Jika iya, kita bisa mulai fokus ke **Fase 1: Membuat Cloud Function-nya**.
