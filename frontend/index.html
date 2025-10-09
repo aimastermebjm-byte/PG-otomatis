@@ -6,8 +6,7 @@
     <title>ShopPWA - Harga Realistis</title>
     <meta name="theme-color" content="#3B82F6">
     <meta name="description" content="Progressive Web App - Harga Terjangkau">
-    
-    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlNob3BQV0EgLSBIYXJnYSBSZWFsaXN0aXMiLAogICJzaG9ydF9uYW1lIjogIlNob3BQV0EiLAogICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbW9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI2ZmZmZmZiIsCiAgInRoZW1lX2NvbG9yIjogIiMzQjgyRjYiLAogICJvcmllbnRhdGlvbiI6ICJwb3J0cmFpdCIsCiAgImljb25zIjogWwogICAgewogICAgICAic3JjIjogImljb24tMTkyLnBuZyIsCiAgICAgICJzaXplcyI6ICIxOTJ4MTkyIiwKICAgICAgInR5cGUiOiAiaW1hZ2UvcG5nIgogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICJpY29uLTUxMi5wbmciLAogICAgICAic2l6ZXMiOiAiNTEyeDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIKICAgIH0KICBdCn0=">
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -181,8 +180,20 @@
             const authBtn = document.getElementById('toggle-auth-btn'); if(authBtn) { const authIcon = authBtn.querySelector('i'); if(authIcon) { if (currentUser) { authIcon.classList.remove('text-gray-400'); authIcon.classList.add('text-blue-600'); } else { authIcon.classList.remove('text-blue-600'); authIcon.classList.add('text-gray-400'); } } }
         }
         function updateCartCount() { const count = cart.reduce((sum, item) => sum + item.quantity, 0); const cartCountElement = document.getElementById('cart-count'); if(cartCountElement) cartCountElement.textContent = count; }
-
-        // --- FUNGSI AUTH (VERSI ASLI SUPABASE) ---
+        
+        // --- FUNGSI AUTH ---
+        async function checkUserSession() {
+            updateDebug('Checking for existing session...');
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                updateDebug('Existing session found for: ' + currentUser.email);
+                showProducts();
+            } else {
+                updateDebug('No existing session. Showing login.');
+                showAuth();
+            }
+        }
         async function login() {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
@@ -193,6 +204,7 @@
                 currentUser = data.user;
                 showToast('Login berhasil!');
                 updateDebug('User logged in: ' + currentUser.email);
+                showProducts();
             } catch (error) { showToast('Login gagal: ' + error.message); updateDebug('Login error: ' + error.message); }
         }
         async function register() {
@@ -208,10 +220,17 @@
         }
         async function logout() {
             const { error } = await supabaseClient.auth.signOut();
-            if (error) { showToast('Logout gagal: ' + error.message); } else { showToast('Logout berhasil!'); }
+            if (error) { showToast('Logout gagal: ' + error.message); } else { 
+                currentUser = null;
+                showToast('Logout berhasil!');
+                showAuth();
+            }
         }
         function toggleAuth() { if (currentUser) { logout(); } else { showAuth(); } }
-        function showAuth() { hideAllSections(); const authSection = document.getElementById('auth-section'); if(authSection) authSection.classList.remove('hidden'); updateNavigation('auth'); }
+        function showAuth() { hideAllSections(); const authSection = document.getElementById('auth-section'); if(authSection) authSection.classList.remove('hidden'); updateNavigation(); }
+        function showProducts() { hideAllSections(); const productsSection = document.getElementById('products-section'); if(productsSection) productsSection.classList.remove('hidden'); updateNavigation('home'); }
+        function showCart() { hideAllSections(); const cartSection = document.getElementById('cart-section'); if(cartSection) cartSection.classList.remove('hidden'); loadCartItems(); updateNavigation('cart'); }
+        function showOrders() { if (!currentUser) { showToast('Silakan login terlebih dahulu'); return; } hideAllSections(); const ordersSection = document.getElementById('orders-section'); if(ordersSection) ordersSection.classList.remove('hidden'); updateNavigation('orders'); }
 
         // --- FUNGSI PRODUK & CART ---
         function loadProducts() {
@@ -237,7 +256,6 @@
             const item = cart.find(item => item.id === productId);
             if (item) { item.quantity += change; if (item.quantity <= 0) { cart = cart.filter(item => item.id !== productId); } loadCartItems(); updateCartCount(); }
         }
-        function showCart() { hideAllSections(); const cartSection = document.getElementById('cart-section'); if(cartSection) cartSection.classList.remove('hidden'); loadCartItems(); updateNavigation('cart'); }
         function loadCartItems() {
             const container = document.getElementById('cart-items');
             if (cart.length === 0) { container.innerHTML = '<p class="text-center text-gray-500 py-8">Keranjang kosong</p>'; const cartTotal = document.getElementById('cart-total'); if(cartTotal) cartTotal.textContent = 'Rp 0'; return; }
@@ -263,10 +281,7 @@
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const uniqueCode = Math.floor(Math.random() * 1000);
             const total = subtotal + uniqueCode;
-            
-            // PERUBAHAN KRUSIAL: userId diganti dengan userid
             const orderData = { userid: currentUser.id, userEmail: currentUser.email, items: [...cart], subtotal: subtotal, uniqueCode: uniqueCode, total: total, status: 'PENDING' };
-            
             try {
                 const { data, error } = await supabaseClient.from('orders').insert([orderData]).select();
                 if (error) throw error;
@@ -281,10 +296,10 @@
                 startCountdown();
             } catch (error) { alert('ERROR CHECKOUT: ' + error.message); console.error('Checkout error detail:', error); }
         }
+        function startCountdown() { /* ... implementasi countdown ... */ }
         async function loadOrders() {
             if (!currentUser) return;
             try {
-                // PERUBAHAN KRUSIAL: userId diganti dengan userid
                 const { data, error } = await supabaseClient.from('orders').select('*').eq('userid', currentUser.id).order('created_at', { ascending: false });
                 if (error) throw error;
                 orders = data; displayOrders(); updateDebug('Orders loaded from Supabase: ' + orders.length);
@@ -303,8 +318,6 @@
                 </div>
             `).join('');
         }
-        function showOrders() { if (!currentUser) { showToast('Silakan login terlebih dahulu'); return; } hideAllSections(); const ordersSection = document.getElementById('orders-section'); if(ordersSection) ordersSection.classList.remove('hidden'); updateNavigation('orders'); }
-        function showProducts() { hideAllSections(); const productsSection = document.getElementById('products-section'); if(productsSection) productsSection.classList.remove('hidden'); updateNavigation('home'); }
         function simulatePayment() {
             if (!currentOrder) return;
             showToast('Mensimulasikan notifikasi bank...');
@@ -328,4 +341,38 @@
             cart = []; currentOrder = null; updateCartCount();
             if (countdownInterval) clearInterval(countdownInterval);
         }
-        function cancelOrder() { showToast('Pa
+
+        // --- INISIALISASI & EVENT LISTENERS ---
+        async function initializeApp() {
+            updateDebug('Initializing app...');
+            lucide.createIcons();
+            await checkUserSession();
+            loadProducts();
+            updateCartCount();
+            document.getElementById('login-btn')?.addEventListener('click', login);
+            document.getElementById('register-btn')?.addEventListener('click', register);
+            document.getElementById('toggle-auth-btn')?.addEventListener('click', toggleAuth);
+            document.getElementById('show-orders-btn')?.addEventListener('click', showOrders);
+            document.getElementById('nav-home-btn')?.addEventListener('click', showProducts);
+            document.getElementById('nav-cart-btn')?.addEventListener('click', showCart);
+            document.getElementById('nav-orders-btn')?.addEventListener('click', showOrders);
+            document.getElementById('checkout-btn')?.addEventListener('click', checkout);
+            document.getElementById('copy-details-btn')?.addEventListener('click', () => {
+                const bank = "BCA\n8870-1234-5678\nPT ShopPWA\n" + document.getElementById('payment-amount').textContent;
+                navigator.clipboard.writeText(bank).then(() => showToast('Detail pembayaran disalin!'));
+            });
+            document.getElementById('simulate-payment-btn')?.addEventListener('click', simulatePayment);
+            document.getElementById('reset-shop-btn')?.addEventListener('click', () => { showProducts(); cart = []; updateCartCount(); });
+            document.getElementById('products')?.addEventListener('click', (e) => {
+                if (e.target.classList.contains('add-to-cart-btn')) {
+                    const productId = parseInt(e.target.dataset.productId);
+                    addToCart(productId);
+                }
+            });
+            updateDebug('App initialized and listeners attached.');
+        }
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
