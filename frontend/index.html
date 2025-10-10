@@ -178,6 +178,17 @@
                 }
             });
             const authBtn = document.getElementById('toggle-auth-btn'); if(authBtn) { const authIcon = authBtn.querySelector('i'); if(authIcon) { if (currentUser) { authIcon.classList.remove('text-gray-400'); authIcon.classList.add('text-blue-600'); } else { authIcon.classList.remove('text-blue-600'); authIcon.classList.add('text-gray-400'); } } }
+            // Reset semua nav buttons kecuali yang dipilih
+            if (active !== 'checkout' && active !== 'payment') {
+                const buttons = document.querySelectorAll('nav button');
+                buttons.forEach(button => {
+                    const icon = button.querySelector('svg');
+                    if (icon) {
+                        icon.classList.remove('text-blue-600');
+                        icon.classList.add('text-gray-400');
+                    }
+                });
+            }
         }
         function updateCartCount() { const count = cart.reduce((sum, item) => sum + item.quantity, 0); const cartCountElement = document.getElementById('cart-count'); if(cartCountElement) cartCountElement.textContent = count; }
         
@@ -230,7 +241,7 @@
         function showAuth() { hideAllSections(); const authSection = document.getElementById('auth-section'); if(authSection) authSection.classList.remove('hidden'); updateNavigation(); }
         function showProducts() { hideAllSections(); const productsSection = document.getElementById('products-section'); if(productsSection) productsSection.classList.remove('hidden'); updateNavigation('home'); }
         function showCart() { hideAllSections(); const cartSection = document.getElementById('cart-section'); if(cartSection) cartSection.classList.remove('hidden'); loadCartItems(); updateNavigation('cart'); }
-        function showOrders() { if (!currentUser) { showToast('Silakan login terlebih dahulu'); return; } hideAllSections(); const ordersSection = document.getElementById('orders-section'); if(ordersSection) ordersSection.classList.remove('hidden'); updateNavigation('orders'); }
+        function showOrders() { if (!currentUser) { showToast('Silakan login terlebih dahulu'); return; } hideAllSections(); const ordersSection = document.getElementById('orders-section'); if(ordersSection) ordersSection.classList.remove('hidden'); updateNavigation('orders'); loadOrders(); }
 
         // --- FUNGSI PRODUK & CART ---
         function loadProducts() {
@@ -281,7 +292,22 @@
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             const uniqueCode = Math.floor(Math.random() * 1000);
             const total = subtotal + uniqueCode;
-            const orderData = { userid: currentUser.id, userEmail: currentUser.email, items: [...cart], subtotal: subtotal, uniqueCode: uniqueCode, total: total, status: 'PENDING' };
+            const orderData = {
+                userid: currentUser.id,
+                userEmail: currentUser.email,
+                items: cart.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    image: item.image,
+                    quantity: item.quantity
+                })),
+                subtotal: subtotal,
+                uniqueCode: uniqueCode,
+                total: total,
+                status: 'PENDING',
+                created_at: new Date().toISOString()
+            };
             try {
                 const { data, error } = await supabaseClient.from('orders').insert([orderData]).select();
                 if (error) throw error;
@@ -294,9 +320,53 @@
                 currentOrder = { ...orderData, id: data[0].id };
                 hideAllSections(); const checkoutSection = document.getElementById('checkout-section'); if(checkoutSection) checkoutSection.classList.remove('hidden'); updateNavigation('checkout');
                 startCountdown();
-            } catch (error) { alert('ERROR CHECKOUT: ' + error.message); console.error('Checkout error detail:', error); }
+            } catch (error) {
+                console.error('Checkout error detail:', error);
+                updateDebug('Checkout error: ' + error.message);
+
+                // Tampilkan error yang lebih user-friendly
+                if (error.message.includes('duplicate key')) {
+                    showToast('Terjadi kesalahan, silakan coba lagi.');
+                } else if (error.message.includes('permission')) {
+                    showToast('Anda tidak memiliki izin untuk melakukan checkout.');
+                } else {
+                    showToast('Checkout gagal: ' + error.message);
+                }
+            }
         }
-        function startCountdown() { /* ... implementasi countdown ... */ }
+        function startCountdown() {
+            let timeLeft = 600; // 10 menit dalam detik
+            const countdownEl = document.getElementById('countdown');
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            countdownInterval = setInterval(() => {
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                if (countdownEl) countdownEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    showToast('⏰ Batas pembayaran habis! Pesanan dibatalkan.');
+                    cancelOrder();
+                }
+                timeLeft--;
+            }, 1000);
+        }
+        async function cancelOrder() {
+            if (currentOrder) {
+                try {
+                    // Update status order di Supabase
+                    await supabaseClient.from('orders').update({ status: 'CANCELLED' }).eq('id', currentOrder.id);
+                    updateDebug('Order cancelled due to timeout: ' + currentOrder.id);
+                } catch (error) {
+                    console.error('Error cancelling order:', error);
+                }
+                currentOrder = null;
+            }
+            cart = [];
+            updateCartCount();
+            showProducts();
+        }
         async function loadOrders() {
             if (!currentUser) return;
             try {
