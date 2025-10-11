@@ -14,7 +14,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="PG Otomatis"
-        android:theme="@style/AppTheme">
+        android:theme="@style/Theme.PGOtomatis">
 
         <!-- Main Activity -->
         <activity

@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background circle -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M54,54 m-48,0 a48,48 0 1,1 96,0 a48,48 0 1,1 -96,0" />
+
+    <!-- Letter P -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,30 L36,78 L48,78 L48,60 L60,60 C70,60 78,52 78,42 C78,32 70,24 60,24 L36,24 Z M48,36 L58,36 C62,36 66,40 66,44 C66,48 62,52 58,52 L48,52 L48,36 Z" />
+
+    <!-- Letter G shape (simplified as part of PG) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,48 C72,38 64,30 54,30 L48,30 L48,42 L54,42 C58,42 60,44 60,48 C60,52 58,54 54,54 L48,54 L48,66 L54,66 C64,66 72,58 72,48 Z" />
+</vector>

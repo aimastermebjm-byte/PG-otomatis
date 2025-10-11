@@ -1,10 +1,10 @@
-name: Build APK
+name: Build Android APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
 
     - name: Set up JDK 17
       uses: actions/setup-java@v3
@@ -33,17 +33,20 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build with Gradle
+    - name: Build Debug APK
       run: ./gradlew assembleDebug
 
-    - name: Upload APK
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v3
       with:
-        name: app-debug-apk
+        name: debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
 
-    - name: Get APK info
-      run: |
-        echo "## APK Download Link" >> $GITHUB_STEP_SUMMARY
-        echo "Build completed successfully!" >> $GITHUB_STEP_SUMMARY
-        echo "Download the APK from the artifacts section below." >> $GITHUB_STEP_SUMMARY
+    - name: Build Release APK
+      run: ./gradlew assembleRelease
+
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-apk
+        path: app/build/outputs/apk/release/app-release.apk
